@@ -4,7 +4,7 @@ from kazoo.client import KazooClient
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
-
+from kafka import KafkaClient
 
 # if zookeeper exits then get bootstrap list of borker else use default 
 zookeeper_host_ip_port = '192.168.150.70:2181'
@@ -31,12 +31,29 @@ except :
      print "zookeeper not found , using default "
      bootstrap_servers_list = ['192.168.150.80:9092']     
 
-print "kafka bootstrap servers " , bootstrap_servers_list 
-    
 
+print "kafka bootstrap servers " , bootstrap_servers_list 
 producer = KafkaProducer(bootstrap_servers= bootstrap_servers_list  )
 
 topic_name = 'my-topic3'
+
+
+
+#check if topic exists 
+kafka_client = KafkaClient(bootstrap_servers_list)
+server_topics = kafka_client.topic_partitions
+
+if topic_name in server_topics:
+   print "topic exits "
+else :
+   print "create topic "
+   print "/opt/kafka/bin/kafka-topics.sh --create --zookeeper  192.168.150.70:2181  --replication-factor 2 --partitions 2 --topic " + topic_name 
+   # os.system ("opt/kafka/bin/kafka-topics.sh --create --zookeeper  192.168.150.70:2181  --replication-factor 2 --partitions 2 --topic " + topic_name ) 
+
+
+
+print server_topics 
+
 
 list_of_messages = [
                    (topic_name, None,  None, '----------------------------------------'),
@@ -75,8 +92,36 @@ producer.flush()
 
 
 
+# nice way of getting kafka state info using zookeeper ( keep it for record ) 
+
+class KafkaInfo(object):
+    def __init__(self, hosts):
+        self.zk = KazooClient(hosts)
+        self.zk.start()
+
+    def topics(self):
+        return self.zk.get_children('/brokers/topics')
+
+    def partitions(self, topic):
+        strs = self.zk.get_children('/brokers/topics/%s/partitions' % topic)
+        return map(int, strs)
+
+    def consumers(self):
+        return self.zk.get_children('/consumers')
+
+    def topics_for_consumer(self, consumer):
+        return self.zk.get_children('/consumers/%s/offsets' % consumer)
+
+    def offset(self, topic, consumer, partition):
+        (n, _) = self.zk.get('/consumers/%s/offsets/%s/%d' % (consumer, topic, partition))
+        return int(n)
 
 
+
+# get number of partition directly from kafka 
+# client = KafkaClient('SERVER:PORT')
+#topic_partition_ids = client.get_partition_ids_for_topic(b'TOPIC')
+#len(topic_partition_ids)
 
 
 
@@ -122,5 +167,10 @@ producer.flush()
 #producer = KafkaProducer(retries=5)
 #################################
 '''
+
+
+
+
+
 
 
